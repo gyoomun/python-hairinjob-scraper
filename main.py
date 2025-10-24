@@ -431,6 +431,18 @@ def fetch_detail_page():
             print('='*80)
             print(detail_content)
             print('='*80)
+
+            # 핸드폰 번호 추출 (010만 허용)
+            phone_pattern = r'010[-.\s]?\d{3,4}[-.\s]?\d{4}'
+            phone_numbers = re.findall(phone_pattern, detail_content)
+
+            if phone_numbers:
+                # 중복 제거
+                unique_phones = list(set(phone_numbers))
+                print(f"\n✓ 찾은 핸드폰 번호: {unique_phones}")
+            else:
+                print(f"\n✗ 핸드폰 번호를 찾을 수 없습니다.")
+
         else:
             print(f"\n✗ 상세내용을 찾을 수 없습니다.")
 
