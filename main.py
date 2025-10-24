@@ -372,6 +372,72 @@ def fetch_multiple_pages():
     print('='*80)
 
 
+def fetch_detail_page():
+    """옵션 4: 상세 페이지를 가져와서 콘솔에 출력합니다."""
+    print(f"\n[옵션 4] 상세 페이지 스크래핑")
+
+    # 쿠키 파일 확인
+    try:
+        with open(COOKIE_FILE, 'r', encoding='utf-8') as f:
+            cookies = json.load(f)
+    except FileNotFoundError:
+        print(f"\n✗ 오류: '{COOKIE_FILE}' 파일이 없습니다.")
+        print("먼저 옵션 1을 실행하여 쿠키를 수집하세요.")
+        return
+
+    # Playwright 쿠키 형식을 requests 형식으로 변환
+    cookie_dict = {cookie['name']: cookie['value'] for cookie in cookies}
+
+    # 테스트 URL
+    detail_url = "https://www.hairinjob.com/cms/s01_v.php?idx=101200"
+
+    # User-Agent 및 헤더 설정
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Referer': 'https://www.hairinjob.com/cms/s01.php',
+        'Upgrade-Insecure-Requests': '1'
+    }
+
+    # 페이지 요청
+    try:
+        print(f"\n{detail_url} 요청 중...")
+        response = requests.get(detail_url, cookies=cookie_dict, headers=headers)
+        response.raise_for_status()
+
+        # 인코딩을 euc-kr로 설정
+        response.encoding = 'euc-kr'
+
+        print(f"\n✓ 페이지를 성공적으로 가져왔습니다.")
+        print(f"✓ 응답 크기: {len(response.text)} 문자")
+
+        # HTML 파싱
+        soup = BeautifulSoup(response.text, 'lxml')
+
+        # "상세내용" 라벨을 가진 bottom_textbox 찾기
+        detail_content = None
+        for textbox in soup.find_all('div', class_='bottom_textbox'):
+            prev_sibling = textbox.find_previous_sibling()
+            if prev_sibling and '상세내용' in prev_sibling.get_text(strip=True):
+                detail_content = textbox.get_text(strip=True)
+                break
+
+        if detail_content:
+            print(f"\n{'='*80}")
+            print("상세내용 (상세요강):")
+            print('='*80)
+            print(detail_content)
+            print('='*80)
+        else:
+            print(f"\n✗ 상세내용을 찾을 수 없습니다.")
+
+    except requests.exceptions.RequestException as e:
+        print(f"\n✗ 오류 발생: {e}")
+
+
 def main():
     """메인 메뉴를 표시하고 사용자 입력을 처리합니다."""
     print("\n" + "="*80)
@@ -381,9 +447,10 @@ def main():
     print("  1. Playwright로 쿠키 수집 및 저장")
     print("  2. 저장된 쿠키로 1페이지 요청")
     print("  3. 저장된 쿠키로 다중 페이지 스크래핑 (전체 페이지 자동 감지)")
+    print("  4. 상세 페이지 스크래핑 테스트 (idx=101200)")
     print("="*80)
 
-    choice = input("\n선택 (1, 2 또는 3): ").strip()
+    choice = input("\n선택 (1, 2, 3 또는 4): ").strip()
 
     if choice == "1":
         asyncio.run(collect_cookies_with_playwright())
@@ -391,8 +458,10 @@ def main():
         fetch_with_saved_cookies()
     elif choice == "3":
         fetch_multiple_pages()
+    elif choice == "4":
+        fetch_detail_page()
     else:
-        print("\n✗ 잘못된 입력입니다. 1, 2 또는 3을 입력하세요.")
+        print("\n✗ 잘못된 입력입니다. 1, 2, 3 또는 4를 입력하세요.")
 
 
 if __name__ == "__main__":
