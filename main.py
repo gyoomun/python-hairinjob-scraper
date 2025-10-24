@@ -210,6 +210,108 @@ def fetch_with_saved_cookies():
         print(f"\n✗ 오류 발생: {e}")
 
 
+def fetch_multiple_pages():
+    """옵션 3: 저장된 쿠키를 사용하여 여러 페이지를 스크래핑합니다."""
+    import random
+    import time
+
+    print(f"\n[옵션 3] 다중 페이지 스크래핑")
+
+    # 쿠키 파일 확인
+    try:
+        with open(COOKIE_FILE, 'r', encoding='utf-8') as f:
+            cookies = json.load(f)
+    except FileNotFoundError:
+        print(f"\n✗ 오류: '{COOKIE_FILE}' 파일이 없습니다.")
+        print("먼저 옵션 1을 실행하여 쿠키를 수집하세요.")
+        return
+
+    # Playwright 쿠키 형식을 requests 형식으로 변환
+    cookie_dict = {cookie['name']: cookie['value'] for cookie in cookies}
+
+    # 페이지 범위 설정 (하드코딩)
+    start_page = 1
+    end_page = 10
+    total_pages = end_page - start_page + 1
+
+    print(f"페이지 범위: {start_page}~{end_page} ({total_pages}페이지)")
+
+    # 작업 폴더 생성 (타임스탬프 기반)
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    work_dir = os.path.join(RESULT_DIR, timestamp)
+    os.makedirs(work_dir, exist_ok=True)
+    print(f"작업 폴더: {work_dir}")
+
+    all_jobs = []
+
+    # 페이지별 스크래핑
+    for page_num in range(start_page, end_page + 1):
+        current_page_index = page_num - start_page + 1
+        progress = (current_page_index / total_pages) * 100
+
+        print(f"\n[{current_page_index}/{total_pages}] 페이지 {page_num} 스크래핑 중... ({progress:.1f}%)")
+
+        # URL 구성
+        if page_num == 1:
+            url = TARGET_URL
+            referer = TARGET_URL
+        else:
+            url = f"{TARGET_URL}?page={page_num}"
+            referer = f"{TARGET_URL}?page={page_num - 1}"
+
+        # User-Agent 및 헤더 설정
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Referer': referer,
+            'Upgrade-Insecure-Requests': '1'
+        }
+
+        # 페이지 요청
+        try:
+            response = requests.get(url, cookies=cookie_dict, headers=headers)
+            response.raise_for_status()
+            response.encoding = 'euc-kr'
+
+            # HTML 파싱
+            job_listings = parse_job_listings(response.text)
+            print(f"✓ {len(job_listings)}개 항목 파싱 완료")
+
+            # 페이지별 파일 저장
+            page_file = os.path.join(work_dir, f"page_{page_num:03d}.json")
+            with open(page_file, 'w', encoding='utf-8') as f:
+                json.dump(job_listings, f, indent=2, ensure_ascii=False)
+            print(f"✓ {page_file} 저장 완료")
+
+            # 전체 목록에 추가
+            all_jobs.extend(job_listings)
+
+            # 마지막 페이지가 아니면 랜덤 딜레이
+            if page_num < end_page:
+                delay = random.uniform(1, 3)
+                print(f"딜레이: {delay:.1f}초...")
+                time.sleep(delay)
+
+        except requests.exceptions.RequestException as e:
+            print(f"\n✗ 오류 발생: {e}")
+            print("프로그램을 종료합니다.")
+            return
+
+    # 모든 페이지 완료 후 통합 파일 생성
+    print(f"\n{'='*80}")
+    print("모든 페이지 스크래핑 완료!")
+    print(f"총 {len(all_jobs)}개 항목 수집")
+
+    all_jobs_file = os.path.join(work_dir, "all_jobs.json")
+    with open(all_jobs_file, 'w', encoding='utf-8') as f:
+        json.dump(all_jobs, f, indent=2, ensure_ascii=False)
+    print(f"✓ 통합 파일 저장: {all_jobs_file}")
+    print('='*80)
+
+
 def main():
     """메인 메뉴를 표시하고 사용자 입력을 처리합니다."""
     print("\n" + "="*80)
@@ -217,17 +319,20 @@ def main():
     print("="*80)
     print("\n선택하세요:")
     print("  1. Playwright로 쿠키 수집 및 저장")
-    print("  2. 저장된 쿠키로 페이지 요청")
+    print("  2. 저장된 쿠키로 1페이지 요청")
+    print("  3. 저장된 쿠키로 다중 페이지 스크래핑 (1~10페이지)")
     print("="*80)
 
-    choice = input("\n선택 (1 또는 2): ").strip()
+    choice = input("\n선택 (1, 2 또는 3): ").strip()
 
     if choice == "1":
         asyncio.run(collect_cookies_with_playwright())
     elif choice == "2":
         fetch_with_saved_cookies()
+    elif choice == "3":
+        fetch_multiple_pages()
     else:
-        print("\n✗ 잘못된 입력입니다. 1 또는 2를 입력하세요.")
+        print("\n✗ 잘못된 입력입니다. 1, 2 또는 3을 입력하세요.")
 
 
 if __name__ == "__main__":
