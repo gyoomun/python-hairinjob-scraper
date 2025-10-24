@@ -294,6 +294,9 @@ def fetch_multiple_pages():
 
     all_jobs = []
 
+    # 시작 시간 기록
+    start_time = time.time()
+
     # 페이지별 스크래핑
     for page_num in range(start_page, end_page + 1):
         current_page_index = page_num - start_page + 1
@@ -350,10 +353,17 @@ def fetch_multiple_pages():
             print("프로그램을 종료합니다.")
             return
 
+    # 종료 시간 기록 및 소요 시간 계산
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    elapsed_minutes = int(elapsed_time // 60)
+    elapsed_seconds = int(elapsed_time % 60)
+
     # 모든 페이지 완료 후 통합 파일 생성
     print(f"\n{'='*80}")
     print("모든 페이지 스크래핑 완료!")
     print(f"총 {len(all_jobs)}개 항목 수집")
+    print(f"소요 시간: {elapsed_minutes}분 {elapsed_seconds}초")
 
     all_jobs_file = os.path.join(work_dir, "all_jobs.json")
     with open(all_jobs_file, 'w', encoding='utf-8') as f:
