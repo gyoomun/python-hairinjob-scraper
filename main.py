@@ -2,6 +2,7 @@ import json
 import asyncio
 import requests
 import os
+import re
 from datetime import datetime
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
@@ -137,6 +138,23 @@ def parse_job_listings(html_content):
     return job_listings
 
 
+def get_last_page_number(html_content):
+    """HTML에서 마지막 페이지 번호를 자동으로 감지합니다."""
+    soup = BeautifulSoup(html_content, 'lxml')
+
+    # nav_l.gif 이미지를 찾음 (마지막 페이지로 이동하는 버튼)
+    nav_img = soup.find('img', src='/images/newhair/nav_l.gif')
+
+    if nav_img and nav_img.parent.name == 'a':
+        href = nav_img.parent.get('href', '')
+        # page=숫자 패턴 매칭
+        match = re.search(r'page=(\d+)', href)
+        if match:
+            return int(match.group(1))
+
+    return None
+
+
 def fetch_with_saved_cookies():
     """옵션 2: 저장된 쿠키를 사용하여 requests로 페이지를 가져옵니다."""
     print(f"\n[옵션 2] 저장된 쿠키로 {TARGET_URL} 요청 중...")
@@ -229,9 +247,41 @@ def fetch_multiple_pages():
     # Playwright 쿠키 형식을 requests 형식으로 변환
     cookie_dict = {cookie['name']: cookie['value'] for cookie in cookies}
 
-    # 페이지 범위 설정 (하드코딩)
+    # User-Agent 및 헤더 설정
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+    }
+
+    # 첫 페이지를 먼저 요청하여 마지막 페이지 번호 감지
+    print(f"\n마지막 페이지 번호 감지 중...")
+    try:
+        response = requests.get(TARGET_URL, cookies=cookie_dict, headers=headers)
+        response.raise_for_status()
+        response.encoding = 'euc-kr'
+
+        last_page = get_last_page_number(response.text)
+
+        if last_page is None:
+            print(f"\n✗ 오류: 마지막 페이지 번호를 감지할 수 없습니다.")
+            print("HTML 구조가 변경되었을 수 있습니다.")
+            print("프로그램을 종료합니다.")
+            return
+
+        print(f"✓ 마지막 페이지 감지 완료: {last_page}페이지")
+
+    except requests.exceptions.RequestException as e:
+        print(f"\n✗ 오류 발생: {e}")
+        print("프로그램을 종료합니다.")
+        return
+
+    # 페이지 범위 설정
     start_page = 1
-    end_page = 10
+    end_page = last_page
     total_pages = end_page - start_page + 1
 
     print(f"페이지 범위: {start_page}~{end_page} ({total_pages}페이지)")
@@ -320,7 +370,7 @@ def main():
     print("\n선택하세요:")
     print("  1. Playwright로 쿠키 수집 및 저장")
     print("  2. 저장된 쿠키로 1페이지 요청")
-    print("  3. 저장된 쿠키로 다중 페이지 스크래핑 (1~10페이지)")
+    print("  3. 저장된 쿠키로 다중 페이지 스크래핑 (전체 페이지 자동 감지)")
     print("="*80)
 
     choice = input("\n선택 (1, 2 또는 3): ").strip()
