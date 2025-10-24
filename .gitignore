@@ -1,6 +1,9 @@
 # 쿠키 파일
 cookies.json
 
+# 스크래핑 결과
+scraping-result/
+
 # Python
 __pycache__/
 *.py[cod]
