@@ -4,7 +4,7 @@ import requests
 import os
 import re
 from datetime import datetime
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, SoupStrainer
 from playwright.async_api import async_playwright
 
 COOKIE_FILE = "cookies.json"
@@ -153,6 +153,53 @@ def get_last_page_number(html_content):
             return int(match.group(1))
 
     return None
+
+
+def fetch_phone_from_detail(idx, cookie_dict):
+    """상세 페이지에서 핸드폰 번호를 추출합니다. (경량화 버전)"""
+    detail_url = f"https://www.hairinjob.com/cms/s01_v.php?idx={idx}"
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html',  # 최적화: 이미지/CSS/JS 제외
+        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Referer': 'https://www.hairinjob.com/cms/s01.php',
+        'Upgrade-Insecure-Requests': '1'
+    }
+
+    try:
+        response = requests.get(detail_url, cookies=cookie_dict, headers=headers, timeout=10)
+        response.raise_for_status()
+        response.encoding = 'euc-kr'
+
+        # 최적화: SoupStrainer로 template_content div만 파싱 (span과 div 모두 포함)
+        only_content = SoupStrainer('div', id='template_content')
+        soup = BeautifulSoup(response.text, 'lxml', parse_only=only_content)
+
+        # "상세내용" 라벨을 가진 bottom_textbox 찾기
+        all_textboxes = soup.find_all('div', class_='bottom_textbox')
+        for textbox in all_textboxes:
+            prev_sibling = textbox.find_previous_sibling()
+            if prev_sibling and '상세내용' in prev_sibling.get_text(strip=True):
+                detail_content = textbox.get_text(strip=True)
+
+                # 핸드폰 번호 추출 (010만 허용)
+                phone_pattern = r'010[-.\s]?\d{3,4}[-.\s]?\d{4}'
+                phone_numbers = re.findall(phone_pattern, detail_content)
+
+                if phone_numbers:
+                    # 첫 번째 번호 반환 (중복 가능성 있으므로)
+                    return phone_numbers[0]
+                break
+
+        return None
+
+    except Exception as e:
+        # 에러 발생 시 None 반환 (계속 진행)
+        print(f"  ⚠ idx={idx} 상세페이지 오류: {e}")
+        return None
 
 
 def fetch_with_saved_cookies():
@@ -332,6 +379,21 @@ def fetch_multiple_pages():
             # HTML 파싱
             job_listings = parse_job_listings(response.text)
             print(f"✓ {len(job_listings)}개 항목 파싱 완료")
+
+            # 각 항목의 상세페이지에서 핸드폰 번호 추출
+            print(f"  상세페이지에서 핸드폰 번호 수집 중...")
+            for i, job in enumerate(job_listings, 1):
+                idx = job.get('idx')
+                if idx:
+                    phone = fetch_phone_from_detail(idx, cookie_dict)
+                    if phone:
+                        job['phone'] = phone
+
+                    # 상세 요청 간 짧은 딜레이 (0.5~1초)
+                    if i < len(job_listings):
+                        time.sleep(random.uniform(0.5, 1))
+
+            print(f"✓ 핸드폰 번호 수집 완료")
 
             # 페이지별 파일 저장
             page_file = os.path.join(work_dir, f"page_{page_num:03d}.json")
