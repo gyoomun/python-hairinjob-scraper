@@ -14,34 +14,59 @@ RESULT_DIR = "scraping-result"
 
 async def collect_cookies_with_playwright():
     """옵션 1: Playwright로 브라우저를 열어 쿠키를 수집하고 저장합니다."""
-    print(f"\n[옵션 1] Playwright로 {TARGET_URL} 접속 중...")
+    import glob
+
+    print(f"\n[옵션 1] 쿠키 세트 10개 수집")
+
+    # 기존 쿠키 파일 모두 삭제
+    existing_cookies = glob.glob("cookies*.json")
+    if existing_cookies:
+        print(f"\n기존 쿠키 파일 {len(existing_cookies)}개 삭제 중...")
+        for cookie_file in existing_cookies:
+            os.remove(cookie_file)
+        print(f"✓ 기존 쿠키 파일 삭제 완료")
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
-        context = await browser.new_context()
-        page = await context.new_page()
+        for i in range(1, 11):
+            print(f"\n[{i}/10] 쿠키 세트 {i} 수집 중...")
 
-        print(f"브라우저가 열렸습니다. 페이지 로딩 중...")
-        await page.goto(TARGET_URL)
+            # 새로운 브라우저 컨텍스트 (독립적인 세션)
+            browser = await p.chromium.launch(headless=False)
+            context = await browser.new_context()
+            page = await context.new_page()
 
-        # 페이지 로딩 대기
-        await page.wait_for_load_state("networkidle")
+            print(f"  브라우저가 열렸습니다. 페이지 로딩 중...")
+            await page.goto(TARGET_URL)
 
-        # 쿠키 추출
-        cookies = await context.cookies()
+            # 페이지 로딩 대기
+            await page.wait_for_load_state("networkidle")
 
-        # 쿠키를 JSON 파일로 저장
-        with open(COOKIE_FILE, 'w', encoding='utf-8') as f:
-            json.dump(cookies, f, indent=2, ensure_ascii=False)
+            # 쿠키 추출
+            cookies = await context.cookies()
 
-        print(f"\n✓ 쿠키가 '{COOKIE_FILE}' 파일에 저장되었습니다.")
-        print(f"✓ 총 {len(cookies)}개의 쿠키가 수집되었습니다.")
+            # PHPSESSID 찾기
+            phpsessid = next((c['value'] for c in cookies if c['name'] == 'PHPSESSID'), 'N/A')
 
-        # 사용자가 확인할 수 있도록 대기
-        print("\n브라우저를 닫으려면 Enter 키를 누르세요...")
-        input()
+            # 파일명: cookies_1.json, cookies_2.json, ...
+            cookie_file = f"cookies_{i}.json"
+            with open(cookie_file, 'w', encoding='utf-8') as f:
+                json.dump(cookies, f, indent=2, ensure_ascii=False)
 
-        await browser.close()
+            print(f"✓ {cookie_file} 저장 완료 (PHPSESSID: {phpsessid[:15]}...)")
+
+            await browser.close()
+
+            # 다음 세션 수집 전 대기 (서버 부하 고려)
+            if i < 10:
+                import random
+                import time
+                delay = random.uniform(2, 5)
+                print(f"  다음 세션까지 {delay:.1f}초 대기...")
+                time.sleep(delay)
+
+        print(f"\n{'='*80}")
+        print("✓ 총 10개의 쿠키 세트 수집 완료!")
+        print('='*80)
 
 
 def parse_job_listings(html_content):

@@ -1,5 +1,5 @@
 # 쿠키 파일
-cookies.json
+cookies*.json
 
 # 스크래핑 결과
 scraping-result/
