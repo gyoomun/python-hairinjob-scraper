@@ -119,7 +119,7 @@ def get_all_detail_urls(conn):
         FROM job_postings
         WHERE detail_url IS NOT NULL
           AND session_id = %s
-        ORDER BY idx
+        ORDER BY page_number ASC, idx ASC
     ''', (latest_session_id,))
     return cursor.fetchall()
 
