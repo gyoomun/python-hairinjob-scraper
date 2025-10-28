@@ -4,6 +4,9 @@
 # 쿠키 폴더
 cookies/
 
+# 브라우저 데이터 (영구 세션)
+browser-data/
+
 # 스크래핑 결과
 scraping-result/
 
