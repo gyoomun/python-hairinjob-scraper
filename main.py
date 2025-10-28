@@ -531,6 +531,32 @@ def fetch_multiple_pages(storage_type='json'):
     print(f"소요 시간: {elapsed_minutes}분 {elapsed_seconds}초")
     print('='*80)
 
+    # 상세페이지 스크래핑 시작
+    scrape_detail_pages(all_jobs, cookie_files, storage)
+
+
+def scrape_detail_pages(all_jobs, cookie_files, storage):
+    """
+    모든 채용공고의 상세페이지를 스크래핑합니다.
+
+    Args:
+        all_jobs: 수집된 모든 채용공고 리스트
+        cookie_files: 쿠키 파일 경로 리스트
+        storage: Storage 객체 (json/db/both)
+    """
+    print(f"\n{'='*80}")
+    print("상세페이지 스크래핑 시작")
+    print(f"대상: {len(all_jobs)}개 채용공고")
+    print('='*80)
+
+    # TODO: 상세 구현 로직 추가 예정
+    # - 병렬 처리로 각 쿠키 세트에 채용공고 분배
+    # - 각 채용공고의 상세페이지 요청
+    # - 핸드폰 번호 등 추가 정보 추출
+    # - Storage를 통해 업데이트
+
+    print("\n[상세페이지 스크래핑] TODO: 구현 예정")
+
 
 def fetch_detail_page():
     """옵션 4: 상세 페이지를 가져와서 콘솔에 출력합니다."""
