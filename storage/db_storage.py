@@ -1,9 +1,11 @@
 """
 PostgreSQL database storage implementation
 """
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from typing import List, Dict, Any, Optional
 from .base import BaseStorage
-from db.database import get_db_connection
+from db.config import get_connection_string
 from db.queries import batch_insert_jobs, start_scrape_session, complete_scrape_session
 
 
@@ -28,6 +30,7 @@ class DbStorage(BaseStorage):
             raise RuntimeError("start_session()을 먼저 호출해야 합니다")
 
         batch_insert_jobs(self.conn, jobs_list, page_num, cookie_idx)
+        self.conn.commit()
 
     def start_session(self, total_pages: int, num_cookies: int) -> Optional[Any]:
         """
@@ -40,8 +43,12 @@ class DbStorage(BaseStorage):
         Returns:
             세션 ID
         """
-        self.conn = get_db_connection().__enter__()
+        self.conn = psycopg2.connect(
+            get_connection_string(),
+            cursor_factory=RealDictCursor
+        )
         self.session_id = start_scrape_session(self.conn, total_pages, num_cookies)
+        self.conn.commit()
         print(f"DB 세션 시작 (session_id={self.session_id})")
         return self.session_id
 
@@ -60,13 +67,13 @@ class DbStorage(BaseStorage):
             return
 
         complete_scrape_session(self.conn, session_id, total_jobs, new_jobs, updated_jobs)
+        self.conn.commit()
         print(f"✓ DB 세션 완료 (session_id={session_id})")
 
     def close(self) -> None:
-        """DB 연결 종료 및 커밋"""
+        """DB 연결 종료"""
         if self.conn:
             try:
-                self.conn.commit()
                 self.conn.close()
             except Exception as e:
                 print(f"DB 연결 종료 중 오류: {e}")
