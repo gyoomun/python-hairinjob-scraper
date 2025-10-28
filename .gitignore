@@ -1,8 +1,14 @@
-# 쿠키 파일
-cookies*.json
+# 환경변수
+.env
+
+# 쿠키 폴더
+cookies/
 
 # 스크래핑 결과
 scraping-result/
+
+# 뷰어 결과물
+viewer/hairinjob_viewer.html
 
 # Python
 __pycache__/
