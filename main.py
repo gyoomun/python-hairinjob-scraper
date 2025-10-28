@@ -696,16 +696,101 @@ async def start_playwright_detail_scraping(all_jobs, storage):
         print("\n✅ 상세페이지 스크래핑 준비 완료")
         print(f"   - 로그인 쿠키: {len(cookie_dict)}개")
         print(f"   - 스크래핑 대상: {len(detail_jobs)}개 채용공고")
-        print("\n상세페이지 스크래핑 로직은 추후 구현 예정")
 
-        # TODO: 실제 상세페이지 스크래핑 로직
-        # - detail_jobs를 순회하며 각 상세페이지 request 요청
-        # - cookie_dict를 사용하여 인증된 요청 수행
-        # - 추가 정보 추출 (전화번호 등)
-        # - storage를 통해 업데이트
-
+        # 브라우저 종료 (requests로 처리)
         await context.close()
         print("\n✓ 브라우저 세션 종료")
+
+        # 첫 10개만 테스트 스크래핑
+        test_jobs = detail_jobs[:10]
+        print(f"\n테스트 스크래핑 시작: 첫 {len(test_jobs)}개 채용공고")
+
+        # requests 헤더 설정
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Referer': 'https://www.hairinjob.com/cms/s01.php',
+            'Upgrade-Insecure-Requests': '1'
+        }
+
+        # 상세페이지 스크래핑
+        for idx, job in enumerate(test_jobs, 1):
+            job_idx = job['idx']
+            detail_url = job['detail_url']
+            company_name = job['company_name']
+            title = job['title']
+
+            print(f"\n[{idx}/{len(test_jobs)}] {company_name} - {title}")
+            print(f"  URL: {detail_url}")
+
+            try:
+                # 페이지 요청
+                response = requests.get(detail_url, cookies=cookie_dict, headers=headers, timeout=10)
+                response.raise_for_status()
+                response.encoding = 'euc-kr'
+
+                # HTML 파싱
+                soup = BeautifulSoup(response.text, 'lxml')
+
+                # "상세내용" 라벨을 가진 bottom_textbox 찾기
+                detail_content = None
+                for textbox in soup.find_all('div', class_='bottom_textbox'):
+                    prev_sibling = textbox.find_previous_sibling()
+                    if prev_sibling and '상세내용' in prev_sibling.get_text(strip=True):
+                        detail_content = textbox.get_text(strip=True)
+                        break
+
+                if detail_content:
+                    # 핸드폰 번호 추출 (010만 허용)
+                    phone_pattern = r'010[-.\s]?\d{3,4}[-.\s]?\d{4}'
+                    phone_numbers = re.findall(phone_pattern, detail_content)
+
+                    if phone_numbers:
+                        # 중복 제거 및 첫 번째 번호 사용
+                        unique_phones = list(set(phone_numbers))
+                        phone = unique_phones[0]
+                        print(f"  ✓ 전화번호: {phone}")
+
+                        # DB 업데이트
+                        from db.database import get_db_connection
+                        from db.queries import batch_insert_jobs
+
+                        with get_db_connection() as conn:
+                            # 기존 job 데이터에 phone 추가
+                            job_data = {
+                                'idx': job_idx,
+                                'company_name': company_name,
+                                'title': title,
+                                'detail_url': detail_url,
+                                'phone': phone,
+                                'positions': '',
+                                'location': '',
+                                'salary': '',
+                                'gender': '',
+                                'deadline': '',
+                                'grade': '',
+                                'priority_badge': '',
+                                'special_badges': []
+                            }
+                            batch_insert_jobs(conn, [job_data], page_num=0, cookie_idx=0, session_id=job.get('session_id'))
+                            conn.commit()
+                            print(f"  ✓ DB 업데이트 완료")
+                    else:
+                        print(f"  - 전화번호 없음")
+                else:
+                    print(f"  - 상세내용 없음")
+
+                # 요청 간 딜레이 (0.5초)
+                await asyncio.sleep(0.5)
+
+            except Exception as e:
+                print(f"  ✗ 오류: {e}")
+                continue
+
+        print(f"\n✅ 테스트 스크래핑 완료 ({len(test_jobs)}개 처리)")
 
 
 def fetch_detail_page():
