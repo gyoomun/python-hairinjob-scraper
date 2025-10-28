@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import argparse
+import random
 from datetime import datetime
 from bs4 import BeautifulSoup, SoupStrainer
 from playwright.async_api import async_playwright
