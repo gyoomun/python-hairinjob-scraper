@@ -133,12 +133,20 @@ async def open_persistent_browser():
                 await page.locator('input[name="pwd"]').first.fill('235194')
                 print("✓ 비밀번호 입력 완료")
 
-                # 10초 대기
-                print("10초 대기 중...")
-                await asyncio.sleep(10)
-                print("✓ 대기 완료")
+                # 3초 대기
+                print("로그인 버튼 클릭 전 대기 중... (3초)")
+                await asyncio.sleep(3)
 
-                print("\n안내: 로그인 버튼을 확인하거나 자동 로그인이 완료되었는지 확인하세요.")
+                # 로그인 버튼 클릭 (button class="btn_login" 중 첫번째)
+                await page.locator('button.btn_login').first.click()
+                print("✓ 로그인 버튼 클릭 완료")
+
+                # 마이페이지 도착 대기
+                print("마이페이지 로드 대기 중...")
+                await page.wait_for_url('https://www.hairinjob.com/cms/p/mypage.php', timeout=30000)
+                print("✓ 마이페이지 도착 완료")
+
+                print("\n✅ 자동 로그인 완료!")
                 print("다음 실행부터는 자동으로 로그인 상태가 유지됩니다.")
 
             except Exception as e:

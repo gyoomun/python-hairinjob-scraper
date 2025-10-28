@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>헤어인잡 채용공고 뷰어</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        .search-box {
+            padding: 20px;
+            background: #fff;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 15px 20px;
+            font-size: 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            transition: all 0.3s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .table-container {
+            overflow-x: auto;
+            padding: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        thead {
+            background: #f8f9fa;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        th {
+            padding: 15px 10px;
+            text-align: left;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 2px solid #dee2e6;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 12px 10px;
+            border-bottom: 1px solid #e9ecef;
+            vertical-align: top;
+        }
+
+        tbody tr {
+            transition: background 0.2s;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .company {
+            font-weight: 600;
+            color: #212529;
+        }
+
+        .title {
+            color: #495057;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .positions {
+            font-size: 0.9em;
+            color: #6c757d;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .location {
+            color: #667eea;
+            font-weight: 500;
+        }
+
+        .salary {
+            color: #28a745;
+            font-weight: 600;
+        }
+
+        .phone {
+            color: #dc3545;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+
+        .badge-gender {
+            background: #e7f5ff;
+            color: #1864ab;
+        }
+
+        .badge-deadline {
+            background: #fff3bf;
+            color: #e67700;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+            font-size: 1.2em;
+        }
+
+        .footer {
+            padding: 20px;
+            text-align: center;
+            background: #f8f9fa;
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .stats {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            table {
+                font-size: 0.9em;
+            }
+
+            th, td {
+                padding: 8px 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>헤어인잡 채용공고</h1>
+            <p>수집된 채용 정보를 한눈에 확인하세요</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-number" id="total-count">0</div>
+                <div class="stat-label">총 채용공고</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="phone-count">0</div>
+                <div class="stat-label">연락처 보유</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="filtered-count">0</div>
+                <div class="stat-label">검색 결과</div>
+            </div>
+        </div>
+
+        <div class="search-box">
+            <input
+                type="text"
+                id="search"
+                class="search-input"
+                placeholder="회사명, 지역, 직종으로 검색하세요... (Enter 키로 검색)"
+            >
+        </div>
+
+        <div class="table-container">
+            <table id="jobs-table">
+                <thead>
+                    <tr>
+                        <th>번호</th>
+                        <th>회사명</th>
+                        <th>제목</th>
+                        <th>직종</th>
+                        <th>지역</th>
+                        <th>급여</th>
+                        <th>성별</th>
+                        <th>마감</th>
+                        <th>연락처</th>
+                    </tr>
+                </thead>
+                <tbody id="jobs-tbody">
+                </tbody>
+            </table>
+        </div>
+
+        <div class="footer">
+            Generated by HairinJob Scraper | Data collected: <span id="timestamp"></span>
+        </div>
+    </div>
+
+    <script>
+        // JSON 데이터를 여기에 삽입하세요
+        const jobsData = __JSON_DATA__;
+
+        const tbody = document.getElementById('jobs-tbody');
+        const searchInput = document.getElementById('search');
+        const totalCountEl = document.getElementById('total-count');
+        const phoneCountEl = document.getElementById('phone-count');
+        const filteredCountEl = document.getElementById('filtered-count');
+        const timestampEl = document.getElementById('timestamp');
+
+        // 통계 업데이트
+        function updateStats() {
+            totalCountEl.textContent = jobsData.length.toLocaleString();
+            const withPhone = jobsData.filter(job => job.phone).length;
+            phoneCountEl.textContent = withPhone.toLocaleString();
+            timestampEl.textContent = new Date().toLocaleDateString('ko-KR');
+        }
+
+        // 테이블 렌더링
+        function renderTable(data) {
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="no-data">검색 결과가 없습니다.</td></tr>';
+                filteredCountEl.textContent = '0';
+                return;
+            }
+
+            tbody.innerHTML = data.map((job, index) => `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td class="company">${job.company_name || '-'}</td>
+                    <td class="title" title="${job.title || '-'}">${job.title || '-'}</td>
+                    <td class="positions" title="${job.positions || '-'}">${job.positions || '-'}</td>
+                    <td class="location">${job.location || '-'}</td>
+                    <td class="salary">${job.salary || '-'}</td>
+                    <td><span class="badge badge-gender">${job.gender || '-'}</span></td>
+                    <td><span class="badge badge-deadline">${job.deadline || '-'}</span></td>
+                    <td class="phone">${job.phone || '-'}</td>
+                </tr>
+            `).join('');
+
+            filteredCountEl.textContent = data.length.toLocaleString();
+        }
+
+        // 검색 기능
+        function handleSearch() {
+            const query = searchInput.value.toLowerCase().trim();
+
+            if (!query) {
+                renderTable(jobsData);
+                return;
+            }
+
+            const filtered = jobsData.filter(job => {
+                return (
+                    (job.company_name && job.company_name.toLowerCase().includes(query)) ||
+                    (job.title && job.title.toLowerCase().includes(query)) ||
+                    (job.positions && job.positions.toLowerCase().includes(query)) ||
+                    (job.location && job.location.toLowerCase().includes(query)) ||
+                    (job.phone && job.phone.includes(query))
+                );
+            });
+
+            renderTable(filtered);
+        }
+
+        // 이벤트 리스너 - Enter 키로만 검색
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleSearch();
+            }
+        });
+
+        // 초기 렌더링
+        updateStats();
+        renderTable(jobsData);
+    </script>
+</body>
+</html>

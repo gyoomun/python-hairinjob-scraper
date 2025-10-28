@@ -657,23 +657,55 @@ async def start_playwright_detail_scraping(all_jobs, storage):
                 await page.locator('input[name="pwd"]').first.fill('235194')
                 print("✓ 비밀번호 입력 완료")
 
-                print("10초 대기 중...")
-                await asyncio.sleep(10)
-                print("✓ 대기 완료")
+                # 3초 대기
+                print("로그인 버튼 클릭 전 대기 중... (3초)")
+                await asyncio.sleep(3)
+
+                # 로그인 버튼 클릭 (button class="btn_login" 중 첫번째)
+                await page.locator('button.btn_login').first.click()
+                print("✓ 로그인 버튼 클릭 완료")
+
+                # 마이페이지 도착 대기
+                print("마이페이지 로드 대기 중...")
+                await page.wait_for_url('https://www.hairinjob.com/cms/p/mypage.php', timeout=30000)
+                print("✓ 마이페이지 도착 완료")
 
             except Exception as e:
                 print(f"⚠️  자동 로그인 오류: {e}")
 
         print("\n✓ 로그인 세션 준비 완료")
-        print("상세페이지 스크래핑 로직은 추후 구현 예정")
+
+        # 로그인된 브라우저에서 쿠키 추출
+        print("\n쿠키 추출 중...")
+        cookies = await context.cookies()
+
+        # requests 라이브러리에서 사용할 수 있는 형식으로 변환
+        cookie_dict = {cookie['name']: cookie['value'] for cookie in cookies}
+        print(f"✓ 쿠키 추출 완료 (총 {len(cookie_dict)}개)")
+
+        # DB에서 상세페이지 URL 조회
+        print("\nDB에서 상세페이지 URL 조회 중...")
+        from db.database import get_db_connection
+        from db.queries import get_all_detail_urls
+
+        with get_db_connection() as conn:
+            detail_jobs = get_all_detail_urls(conn)
+            print(f"✓ 상세페이지 URL 조회 완료 (총 {len(detail_jobs)}개)")
+
+        # 상세페이지 스크래핑 준비 완료
+        print("\n✅ 상세페이지 스크래핑 준비 완료")
+        print(f"   - 로그인 쿠키: {len(cookie_dict)}개")
+        print(f"   - 스크래핑 대상: {len(detail_jobs)}개 채용공고")
+        print("\n상세페이지 스크래핑 로직은 추후 구현 예정")
 
         # TODO: 실제 상세페이지 스크래핑 로직
-        # - all_jobs를 순회하며 각 상세페이지 방문
-        # - 추가 정보 추출
+        # - detail_jobs를 순회하며 각 상세페이지 request 요청
+        # - cookie_dict를 사용하여 인증된 요청 수행
+        # - 추가 정보 추출 (전화번호 등)
         # - storage를 통해 업데이트
 
         await context.close()
-        print("✓ 브라우저 세션 종료")
+        print("\n✓ 브라우저 세션 종료")
 
 
 def fetch_detail_page():

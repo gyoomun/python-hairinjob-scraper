@@ -79,3 +79,14 @@ def get_total_jobs_count(conn):
     cursor = conn.cursor()
     cursor.execute('SELECT COUNT(*) as count FROM job_postings')
     return cursor.fetchone()['count']
+
+def get_all_detail_urls(conn):
+    """모든 채용공고의 상세페이지 URL 조회"""
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT idx, detail_url, company_name, title
+        FROM job_postings
+        WHERE detail_url IS NOT NULL
+        ORDER BY idx
+    ''')
+    return cursor.fetchall()
