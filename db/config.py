@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-# .env | \�
+# .env 파일 로드
 load_dotenv()
 
 DB_CONFIG = {
@@ -13,7 +13,7 @@ DB_CONFIG = {
 }
 
 def get_connection_string():
-    """PostgreSQL � 8�� �1"""
+    """PostgreSQL 연결 문자열 생성"""
     return (
         f"host={DB_CONFIG['host']} "
         f"port={DB_CONFIG['port']} "
