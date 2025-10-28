@@ -782,9 +782,9 @@ async def start_playwright_detail_scraping(all_jobs, storage):
                     elif label == '담당자연락처':
                         text = right_li.get_text(strip=True)
                         if text:
-                            parts = text.split()
-                            if parts:
-                                recruiter_contact = parts[0]
+                            # 숫자와 하이픈만 추출 (※ 등 특수문자 제거)
+                            recruiter_contact = re.sub(r'[^0-9-]', '', text.split()[0] if text.split() else '')
+                            if recruiter_contact:
                                 found_fields.add('담당자연락처')
 
                 print(f"  헤더 정보: 업체주소={bool(company_address)}, 전화번호={bool(company_phone)}, "
