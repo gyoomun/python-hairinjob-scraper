@@ -95,6 +95,10 @@ async def open_persistent_browser():
         await page.reload(wait_until='networkidle')
         print("✓ 새로고침 완료")
 
+        # 4초 대기
+        print("페이지 안정화 대기 중... (4초)")
+        await asyncio.sleep(4)
+
         # 로그인 상태 확인
         print("\n로그인 상태 확인 중...")
         page_content = await page.content()
