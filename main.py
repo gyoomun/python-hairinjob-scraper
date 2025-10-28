@@ -723,6 +723,10 @@ async def start_playwright_detail_scraping(all_jobs, storage):
             company_name = job['company_name']
             title = job['title']
 
+            # detail_url에 host가 없으면 추가
+            if detail_url and not detail_url.startswith('http'):
+                detail_url = f"https://www.hairinjob.com{detail_url}"
+
             print(f"\n[{idx}/{len(test_jobs)}] {company_name} - {title}")
             print(f"  URL: {detail_url}")
 
