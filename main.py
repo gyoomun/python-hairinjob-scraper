@@ -684,6 +684,10 @@ async def start_playwright_detail_scraping(all_jobs, storage):
         cookie_dict = {cookie['name']: cookie['value'] for cookie in cookies}
         print(f"✓ 쿠키 추출 완료 (총 {len(cookie_dict)}개)")
 
+        # 쿠키 추출 후 즉시 브라우저 종료
+        await context.close()
+        print("✓ 브라우저 세션 종료 (쿠키 추출 완료)")
+
         # DB에서 상세페이지 URL 조회
         print("\nDB에서 상세페이지 URL 조회 중...")
         from db.database import get_db_connection
@@ -697,10 +701,6 @@ async def start_playwright_detail_scraping(all_jobs, storage):
         print("\n✅ 상세페이지 스크래핑 준비 완료")
         print(f"   - 로그인 쿠키: {len(cookie_dict)}개")
         print(f"   - 스크래핑 대상: {len(detail_jobs)}개 채용공고")
-
-        # 브라우저 종료 (requests로 처리)
-        await context.close()
-        print("\n✓ 브라우저 세션 종료")
 
         # 첫 10개만 테스트 스크래핑
         test_jobs = detail_jobs[:10]
