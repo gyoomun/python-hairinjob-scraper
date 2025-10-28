@@ -116,8 +116,12 @@ async def open_persistent_browser():
         else:
             print("⚠️  로그인 상태: 확인 불가 (페이지 구조 변경 가능성)")
 
+        # 로그인 안되어 있으면 로그인 페이지로 이동
         if not is_logged_in:
-            print("\n안내: 브라우저에서 수동으로 로그인해주세요.")
+            print("\n로그인 페이지로 이동 중...")
+            await page.goto(LOGIN_URL, wait_until='networkidle')
+            print(f"✓ 로그인 페이지 로드 완료: {LOGIN_URL}")
+            print("\n안내: 브라우저에서 로그인해주세요.")
             print("로그인 후 다음 실행부터는 자동으로 로그인 상태가 유지됩니다.")
 
         print("\n브라우저가 열려 있습니다.")
