@@ -82,15 +82,36 @@ def get_total_jobs_count(conn):
     cursor.execute('SELECT COUNT(*) as count FROM job_postings')
     return cursor.fetchone()['count']
 
-def get_all_detail_urls(conn):
-    """모든 채용공고의 상세페이지 URL 조회"""
+def get_latest_session_id(conn):
+    """가장 최근 세션 ID 조회"""
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT idx, detail_url, company_name, title
+        SELECT MAX(id) as latest_id
+        FROM scrape_sessions
+    ''')
+    result = cursor.fetchone()
+    return result['latest_id'] if result else None
+
+def get_all_detail_urls(conn):
+    """가장 최근 세션의 채용공고 상세페이지 URL 조회"""
+    cursor = conn.cursor()
+
+    # 가장 최근 세션 ID 조회
+    latest_session_id = get_latest_session_id(conn)
+
+    if not latest_session_id:
+        print("⚠️  스크랩 세션이 없습니다.")
+        return []
+
+    print(f"가장 최근 세션 ID: {latest_session_id}")
+
+    cursor.execute('''
+        SELECT idx, detail_url, company_name, title, session_id
         FROM job_postings
         WHERE detail_url IS NOT NULL
+          AND session_id = %s
         ORDER BY idx
-    ''')
+    ''', (latest_session_id,))
     return cursor.fetchall()
 
 def get_jobs_by_session(conn, session_id):
