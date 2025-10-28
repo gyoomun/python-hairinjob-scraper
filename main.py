@@ -638,20 +638,41 @@ def main():
         help='실행 모드 선택 (필수)'
     )
 
+    parser.add_argument(
+        '--storage',
+        type=str,
+        choices=['json', 'db', 'both'],
+        help='저장 방식 선택 (scrape-all 모드 전용, 필수)'
+    )
+
     # 인자가 없으면 커스텀 메시지만 표시
     if len(sys.argv) == 1:
         print("\n" + "="*80)
         print("❌ 오류: --mode 파라미터가 필요합니다!")
         print("="*80)
         print("\n사용 예시:")
-        print("  python main.py --mode collect-cookies    # 쿠키 수집")
-        print("  python main.py --mode test-page          # 1페이지 테스트")
-        print("  python main.py --mode scrape-all         # 전체 페이지 스크래핑")
-        print("  python main.py --mode test-detail        # 상세 페이지 테스트")
+        print("  python main.py --mode collect-cookies                    # 쿠키 수집")
+        print("  python main.py --mode test-page                          # 1페이지 테스트")
+        print("  python main.py --mode scrape-all --storage json          # 전체 스크래핑 (JSON)")
+        print("  python main.py --mode scrape-all --storage db            # 전체 스크래핑 (DB)")
+        print("  python main.py --mode scrape-all --storage both          # 전체 스크래핑 (JSON+DB)")
+        print("  python main.py --mode test-detail                        # 상세 페이지 테스트")
         print("")
         sys.exit(1)
 
     args = parser.parse_args()
+
+    # scrape-all 모드일 때 --storage 필수 체크
+    if args.mode == 'scrape-all' and not args.storage:
+        print("\n" + "="*80)
+        print("❌ 오류: --mode scrape-all 실행 시 --storage 파라미터가 필요합니다!")
+        print("="*80)
+        print("\n사용 예시:")
+        print("  python main.py --mode scrape-all --storage json          # JSON 저장")
+        print("  python main.py --mode scrape-all --storage db            # DB 저장")
+        print("  python main.py --mode scrape-all --storage both          # JSON+DB 저장")
+        print("")
+        sys.exit(1)
 
     print("\n" + "="*80)
     print("HairinJob 스크래퍼")
@@ -668,7 +689,8 @@ def main():
 
     elif args.mode == 'scrape-all':
         print("\n[모드: 전체 스크래핑] 저장된 쿠키로 다중 페이지 스크래핑")
-        fetch_multiple_pages()
+        print(f"[저장 방식: {args.storage}]")
+        fetch_multiple_pages()  # TODO: storage 파라미터 추가 예정
 
     elif args.mode == 'test-detail':
         print("\n[모드: 상세 페이지 테스트] 상세 페이지 스크래핑 (idx=101200)")
