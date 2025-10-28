@@ -25,6 +25,10 @@ def batch_insert_jobs(conn, jobs_list, page_num, cookie_idx, session_id=None):
             job.get('priority_badge'),
             special_badges_json,
             job.get('phone'),
+            job.get('company_address'),
+            job.get('company_phone'),
+            job.get('recruiter_name'),
+            job.get('recruiter_contact'),
             page_num,
             cookie_idx,
             session_id
@@ -35,6 +39,7 @@ def batch_insert_jobs(conn, jobs_list, page_num, cookie_idx, session_id=None):
         (idx, company_name, title, detail_url, positions,
          location, salary, gender, deadline, grade,
          priority_badge, special_badges, phone,
+         company_address, company_phone, recruiter_name, recruiter_contact,
          page_number, cookie_set, session_id)
         VALUES %s
         ON CONFLICT (idx) DO UPDATE SET
@@ -49,6 +54,10 @@ def batch_insert_jobs(conn, jobs_list, page_num, cookie_idx, session_id=None):
             priority_badge = EXCLUDED.priority_badge,
             special_badges = EXCLUDED.special_badges,
             phone = COALESCE(EXCLUDED.phone, job_postings.phone),
+            company_address = COALESCE(EXCLUDED.company_address, job_postings.company_address),
+            company_phone = COALESCE(EXCLUDED.company_phone, job_postings.company_phone),
+            recruiter_name = COALESCE(EXCLUDED.recruiter_name, job_postings.recruiter_name),
+            recruiter_contact = COALESCE(EXCLUDED.recruiter_contact, job_postings.recruiter_contact),
             session_id = COALESCE(EXCLUDED.session_id, job_postings.session_id),
             updated_at = NOW()
     ''', values)

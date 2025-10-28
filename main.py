@@ -739,8 +739,61 @@ async def start_playwright_detail_scraping(all_jobs, storage):
                 # HTML 파싱
                 soup = BeautifulSoup(response.text, 'lxml')
 
-                # "상세내용" 라벨을 가진 bottom_textbox 찾기
+                # 헤더 정보 추출 (업체주소, 전화번호, 채용담당자, 담당자연락처)
+                company_address = None
+                company_phone = None
+                recruiter_name = None
+                recruiter_contact = None
+
+                found_fields = set()
+                left_items = soup.find_all('li', class_='left')
+
+                for left_li in left_items:
+                    # 4개 모두 찾았으면 조기 종료
+                    if len(found_fields) >= 4:
+                        break
+
+                    label = left_li.get_text(strip=True)
+
+                    # 이미 찾은 필드는 스킵
+                    if label in found_fields:
+                        continue
+
+                    right_li = left_li.find_next_sibling('li', class_='right')
+                    if not right_li:
+                        continue
+
+                    if label == '업체주소':
+                        company_address = right_li.get_text(strip=True)
+                        found_fields.add('업체주소')
+
+                    elif label == '전화번호':
+                        span = right_li.find('span')
+                        if span:
+                            company_phone = span.get_text(strip=True)
+                            found_fields.add('전화번호')
+
+                    elif label == '채용담당자':
+                        span = right_li.find('span')
+                        if span:
+                            recruiter_name = span.get_text(strip=True)
+                            found_fields.add('채용담당자')
+
+                    elif label == '담당자연락처':
+                        text = right_li.get_text(strip=True)
+                        if text:
+                            parts = text.split()
+                            if parts:
+                                recruiter_contact = parts[0]
+                                found_fields.add('담당자연락처')
+
+                print(f"  헤더 정보: 업체주소={bool(company_address)}, 전화번호={bool(company_phone)}, "
+                      f"담당자={bool(recruiter_name)}, 담당자연락처={bool(recruiter_contact)}")
+
+                # "상세내용" 라벨을 가진 bottom_textbox 찾기 (상세요강 속 핸드폰)
                 detail_content = None
+                phone = None
+
                 for textbox in soup.find_all('div', class_='bottom_textbox'):
                     prev_sibling = textbox.find_previous_sibling()
                     if prev_sibling and '상세내용' in prev_sibling.get_text(strip=True):
@@ -756,36 +809,39 @@ async def start_playwright_detail_scraping(all_jobs, storage):
                         # 중복 제거 및 첫 번째 번호 사용
                         unique_phones = list(set(phone_numbers))
                         phone = unique_phones[0]
-                        print(f"  ✓ 전화번호: {phone}")
-
-                        # DB 업데이트
-                        from db.database import get_db_connection
-                        from db.queries import batch_insert_jobs
-
-                        with get_db_connection() as conn:
-                            # 기존 job 데이터에 phone 추가
-                            job_data = {
-                                'idx': job_idx,
-                                'company_name': company_name,
-                                'title': title,
-                                'detail_url': detail_url,
-                                'phone': phone,
-                                'positions': '',
-                                'location': '',
-                                'salary': '',
-                                'gender': '',
-                                'deadline': '',
-                                'grade': '',
-                                'priority_badge': '',
-                                'special_badges': []
-                            }
-                            batch_insert_jobs(conn, [job_data], page_num=0, cookie_idx=0, session_id=job.get('session_id'))
-                            conn.commit()
-                            print(f"  ✓ DB 업데이트 완료")
+                        print(f"  ✓ 상세요강 전화번호: {phone}")
                     else:
-                        print(f"  - 전화번호 없음")
+                        print(f"  - 상세요강 전화번호 없음")
                 else:
-                    print(f"  - 상세내용 없음")
+                    print(f"  - 상세내용 섹션 없음")
+
+                # DB 업데이트 (헤더 정보 + 상세요강 전화번호)
+                from db.database import get_db_connection
+                from db.queries import batch_insert_jobs
+
+                with get_db_connection() as conn:
+                    job_data = {
+                        'idx': job_idx,
+                        'company_name': company_name,
+                        'title': title,
+                        'detail_url': detail_url,
+                        'phone': phone,
+                        'company_address': company_address,
+                        'company_phone': company_phone,
+                        'recruiter_name': recruiter_name,
+                        'recruiter_contact': recruiter_contact,
+                        'positions': '',
+                        'location': '',
+                        'salary': '',
+                        'gender': '',
+                        'deadline': '',
+                        'grade': '',
+                        'priority_badge': '',
+                        'special_badges': []
+                    }
+                    batch_insert_jobs(conn, [job_data], page_num=0, cookie_idx=0, session_id=job.get('session_id'))
+                    conn.commit()
+                    print(f"  ✓ DB 업데이트 완료")
 
                 # 요청 간 랜덤 딜레이 (0.3~1.0초)
                 delay = random.uniform(0.3, 1.0)
