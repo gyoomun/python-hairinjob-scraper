@@ -15,7 +15,13 @@ CREATE TABLE IF NOT EXISTS job_postings (
     grade VARCHAR(20),
     priority_badge VARCHAR(20),
     special_badges JSONB,
-    phone VARCHAR(20),
+    phone VARCHAR(20),                   -- 상세요강 본문에서 추출한 핸드폰번호
+
+    -- 헤더 정보 (업체 및 담당자)
+    company_address TEXT,                -- 업체주소
+    company_phone VARCHAR(20),           -- 업체 대표 전화번호
+    recruiter_name VARCHAR(100),         -- 채용담당자 이름
+    recruiter_contact VARCHAR(20),       -- 채용담당자 연락처
 
     scraped_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
@@ -46,6 +52,8 @@ CREATE INDEX IF NOT EXISTS idx_updated_at ON job_postings(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_phone ON job_postings(phone) WHERE phone IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_special_badges ON job_postings USING GIN(special_badges);
 CREATE INDEX IF NOT EXISTS idx_session_id ON job_postings(session_id);
+CREATE INDEX IF NOT EXISTS idx_company_phone ON job_postings(company_phone);
+CREATE INDEX IF NOT EXISTS idx_recruiter_contact ON job_postings(recruiter_contact);
 
 -- 자동 updated_at 트리거 함수
 CREATE OR REPLACE FUNCTION update_updated_at_column()
