@@ -787,8 +787,10 @@ async def start_playwright_detail_scraping(all_jobs, storage):
                 else:
                     print(f"  - 상세내용 없음")
 
-                # 요청 간 딜레이 (0.5초)
-                await asyncio.sleep(0.5)
+                # 요청 간 랜덤 딜레이 (0.5~2.0초)
+                delay = random.uniform(0.5, 2.0)
+                print(f"  ⏱️  {delay:.2f}초 대기 중...")
+                await asyncio.sleep(delay)
 
             except Exception as e:
                 print(f"  ✗ 오류: {e}")
