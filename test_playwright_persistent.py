@@ -121,8 +121,29 @@ async def open_persistent_browser():
             print("\n로그인 페이지로 이동 중...")
             await page.goto(LOGIN_URL, wait_until='networkidle')
             print(f"✓ 로그인 페이지 로드 완료: {LOGIN_URL}")
-            print("\n안내: 브라우저에서 로그인해주세요.")
-            print("로그인 후 다음 실행부터는 자동으로 로그인 상태가 유지됩니다.")
+
+            # 자동 로그인 시도
+            print("\n자동 로그인 진행 중...")
+            try:
+                # 아이디 입력
+                await page.fill('input[name="mb_id"]', '01028721278')
+                print("✓ 아이디 입력 완료")
+
+                # 비밀번호 입력
+                await page.fill('input[name="mb_password"]', '235194')
+                print("✓ 비밀번호 입력 완료")
+
+                # 10초 대기
+                print("10초 대기 중...")
+                await asyncio.sleep(10)
+                print("✓ 대기 완료")
+
+                print("\n안내: 로그인 버튼을 확인하거나 자동 로그인이 완료되었는지 확인하세요.")
+                print("다음 실행부터는 자동으로 로그인 상태가 유지됩니다.")
+
+            except Exception as e:
+                print(f"⚠️  자동 로그인 오류: {e}")
+                print("수동으로 로그인해주세요.")
 
         print("\n브라우저가 열려 있습니다.")
         print("사이트를 자유롭게 탐색하거나 로그인하세요.")
