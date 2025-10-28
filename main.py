@@ -702,9 +702,8 @@ async def start_playwright_detail_scraping(all_jobs, storage):
         print(f"   - 로그인 쿠키: {len(cookie_dict)}개")
         print(f"   - 스크래핑 대상: {len(detail_jobs)}개 채용공고")
 
-        # 첫 10개만 테스트 스크래핑
-        test_jobs = detail_jobs[:10]
-        print(f"\n테스트 스크래핑 시작: 첫 {len(test_jobs)}개 채용공고")
+        # 전체 상세페이지 스크래핑
+        print(f"\n상세페이지 스크래핑 시작: 총 {len(detail_jobs)}개 채용공고")
 
         # requests 헤더 설정
         headers = {
@@ -718,7 +717,7 @@ async def start_playwright_detail_scraping(all_jobs, storage):
         }
 
         # 상세페이지 스크래핑
-        for idx, job in enumerate(test_jobs, 1):
+        for idx, job in enumerate(detail_jobs, 1):
             job_idx = job['idx']
             detail_url = job['detail_url']
             company_name = job['company_name']
@@ -728,7 +727,7 @@ async def start_playwright_detail_scraping(all_jobs, storage):
             if detail_url and not detail_url.startswith('http'):
                 detail_url = f"https://www.hairinjob.com{detail_url}"
 
-            print(f"\n[{idx}/{len(test_jobs)}] {company_name} - {title}")
+            print(f"\n[{idx}/{len(detail_jobs)}] {company_name} - {title}")
             print(f"  URL: {detail_url}")
 
             try:
@@ -853,7 +852,7 @@ async def start_playwright_detail_scraping(all_jobs, storage):
                 print(f"  ✗ 오류: {e}")
                 continue
 
-        print(f"\n✅ 테스트 스크래핑 완료 ({len(test_jobs)}개 처리)")
+        print(f"\n✅ 상세페이지 스크래핑 완료 ({len(detail_jobs)}개 처리)")
 
 
 def fetch_detail_page():
