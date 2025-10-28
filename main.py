@@ -3,6 +3,8 @@ import asyncio
 import requests
 import os
 import re
+import sys
+import argparse
 from datetime import datetime
 from bs4 import BeautifulSoup, SoupStrainer
 from playwright.async_api import async_playwright
@@ -615,29 +617,62 @@ def fetch_detail_page():
 
 
 def main():
-    """메인 메뉴를 표시하고 사용자 입력을 처리합니다."""
+    """메인 함수: 커맨드라인 인자를 파싱하여 모드를 실행합니다."""
+    parser = argparse.ArgumentParser(
+        description='HairinJob 스크래퍼 - 채용 정보 수집 도구',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+사용 예시:
+  python main.py --mode collect-cookies    # 쿠키 수집
+  python main.py --mode test-page          # 1페이지 테스트
+  python main.py --mode scrape-all         # 전체 페이지 스크래핑
+  python main.py --mode test-detail        # 상세 페이지 테스트
+        """
+    )
+
+    parser.add_argument(
+        '--mode',
+        type=str,
+        required=True,
+        choices=['collect-cookies', 'test-page', 'scrape-all', 'test-detail'],
+        help='실행 모드 선택 (필수)'
+    )
+
+    # 인자가 없으면 커스텀 메시지만 표시
+    if len(sys.argv) == 1:
+        print("\n" + "="*80)
+        print("❌ 오류: --mode 파라미터가 필요합니다!")
+        print("="*80)
+        print("\n사용 예시:")
+        print("  python main.py --mode collect-cookies    # 쿠키 수집")
+        print("  python main.py --mode test-page          # 1페이지 테스트")
+        print("  python main.py --mode scrape-all         # 전체 페이지 스크래핑")
+        print("  python main.py --mode test-detail        # 상세 페이지 테스트")
+        print("")
+        sys.exit(1)
+
+    args = parser.parse_args()
+
     print("\n" + "="*80)
     print("HairinJob 스크래퍼")
     print("="*80)
-    print("\n선택하세요:")
-    print("  1. Playwright로 쿠키 수집 및 저장")
-    print("  2. 저장된 쿠키로 1페이지 요청")
-    print("  3. 저장된 쿠키로 다중 페이지 스크래핑 (전체 페이지 자동 감지)")
-    print("  4. 상세 페이지 스크래핑 테스트 (idx=101200)")
-    print("="*80)
 
-    choice = input("\n선택 (1, 2, 3 또는 4): ").strip()
-
-    if choice == "1":
+    # 모드에 따라 실행
+    if args.mode == 'collect-cookies':
+        print("\n[모드: 쿠키 수집] Playwright로 쿠키 수집 및 저장")
         asyncio.run(collect_cookies_with_playwright())
-    elif choice == "2":
+
+    elif args.mode == 'test-page':
+        print("\n[모드: 페이지 테스트] 저장된 쿠키로 1페이지 요청")
         fetch_with_saved_cookies()
-    elif choice == "3":
+
+    elif args.mode == 'scrape-all':
+        print("\n[모드: 전체 스크래핑] 저장된 쿠키로 다중 페이지 스크래핑")
         fetch_multiple_pages()
-    elif choice == "4":
+
+    elif args.mode == 'test-detail':
+        print("\n[모드: 상세 페이지 테스트] 상세 페이지 스크래핑 (idx=101200)")
         fetch_detail_page()
-    else:
-        print("\n✗ 잘못된 입력입니다. 1, 2, 3 또는 4를 입력하세요.")
 
 
 if __name__ == "__main__":
