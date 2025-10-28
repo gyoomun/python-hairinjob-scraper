@@ -88,8 +88,34 @@ async def open_persistent_browser():
 
         print(f"\n{TARGET_URL} 이동 중...")
         await page.goto(TARGET_URL, wait_until='networkidle')
-
         print("✓ 페이지 로드 완료")
+
+        # 새로고침
+        print("\n페이지 새로고침 중...")
+        await page.reload(wait_until='networkidle')
+        print("✓ 새로고침 완료")
+
+        # 로그인 상태 확인
+        print("\n로그인 상태 확인 중...")
+        page_content = await page.content()
+
+        LOGIN_URL = "https://www.hairinjob.com/cms/user/login.php"
+        LOGOUT_URL = "https://www.hairinjob.com/member/login_ok.php?del=1"
+
+        is_logged_in = False
+        if LOGOUT_URL in page_content:
+            is_logged_in = True
+            print("✅ 로그인 상태: 로그인됨")
+        elif LOGIN_URL in page_content:
+            is_logged_in = False
+            print("❌ 로그인 상태: 로그인 안됨")
+        else:
+            print("⚠️  로그인 상태: 확인 불가 (페이지 구조 변경 가능성)")
+
+        if not is_logged_in:
+            print("\n안내: 브라우저에서 수동으로 로그인해주세요.")
+            print("로그인 후 다음 실행부터는 자동으로 로그인 상태가 유지됩니다.")
+
         print("\n브라우저가 열려 있습니다.")
         print("사이트를 자유롭게 탐색하거나 로그인하세요.")
         print("종료하려면 이 터미널에서 Ctrl+C를 누르세요.")
