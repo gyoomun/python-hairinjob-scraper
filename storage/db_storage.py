@@ -29,7 +29,7 @@ class DbStorage(BaseStorage):
         if not self.conn:
             raise RuntimeError("start_session()을 먼저 호출해야 합니다")
 
-        batch_insert_jobs(self.conn, jobs_list, page_num, cookie_idx)
+        batch_insert_jobs(self.conn, jobs_list, page_num, cookie_idx, self.session_id)
         self.conn.commit()
 
     def start_session(self, total_pages: int, num_cookies: int) -> Optional[Any]:

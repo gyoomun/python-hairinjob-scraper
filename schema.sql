@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS job_postings (
     scraped_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
     page_number INTEGER,
-    cookie_set INTEGER
+    cookie_set INTEGER,
+    session_id INTEGER REFERENCES scrape_sessions(id)
 );
 
 -- 스크래핑 세션 이력
@@ -44,6 +45,7 @@ CREATE INDEX IF NOT EXISTS idx_scraped_at ON job_postings(scraped_at DESC);
 CREATE INDEX IF NOT EXISTS idx_updated_at ON job_postings(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_phone ON job_postings(phone) WHERE phone IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_special_badges ON job_postings USING GIN(special_badges);
+CREATE INDEX IF NOT EXISTS idx_session_id ON job_postings(session_id);
 
 -- 자동 updated_at 트리거 함수
 CREATE OR REPLACE FUNCTION update_updated_at_column()
