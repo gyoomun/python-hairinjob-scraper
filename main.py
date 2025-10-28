@@ -7,7 +7,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup, SoupStrainer
 from playwright.async_api import async_playwright
 
-COOKIE_FILE = "cookies.json"
+COOKIE_DIR = "cookies"
 TARGET_URL = "https://www.hairinjob.com/cms/s01.php"
 RESULT_DIR = "scraping-result"
 
@@ -18,8 +18,13 @@ async def collect_cookies_with_playwright():
 
     print(f"\n[옵션 1] 쿠키 세트 10개 수집")
 
+    # cookies 폴더 생성
+    if not os.path.exists(COOKIE_DIR):
+        os.makedirs(COOKIE_DIR)
+        print(f"✓ '{COOKIE_DIR}' 폴더 생성")
+
     # 기존 쿠키 파일 모두 삭제
-    existing_cookies = glob.glob("cookies*.json")
+    existing_cookies = glob.glob(os.path.join(COOKIE_DIR, "cookies_*.json"))
     if existing_cookies:
         print(f"\n기존 쿠키 파일 {len(existing_cookies)}개 삭제 중...")
         for cookie_file in existing_cookies:
@@ -47,8 +52,8 @@ async def collect_cookies_with_playwright():
             # PHPSESSID 찾기
             phpsessid = next((c['value'] for c in cookies if c['name'] == 'PHPSESSID'), 'N/A')
 
-            # 파일명: cookies_1.json, cookies_2.json, ...
-            cookie_file = f"cookies_{i}.json"
+            # 파일명: cookies/cookies_1.json, cookies/cookies_2.json, ...
+            cookie_file = os.path.join(COOKIE_DIR, f"cookies_{i}.json")
             with open(cookie_file, 'w', encoding='utf-8') as f:
                 json.dump(cookies, f, indent=2, ensure_ascii=False)
 
@@ -300,16 +305,114 @@ def fetch_with_saved_cookies():
         print(f"\n✗ 오류 발생: {e}")
 
 
+def scrape_with_cookie(cookie_idx, cookie_file, start_page, end_page, work_dir, num_cookies):
+    """특정 쿠키로 할당된 페이지 범위를 스크래핑합니다."""
+    import random
+    import time
+
+    print(f"\n{'='*80}")
+    print(f"[쿠키 세트 {cookie_idx}/{num_cookies}] {os.path.basename(cookie_file)}")
+    print(f"페이지 범위: {start_page}~{end_page} ({end_page - start_page + 1}페이지)")
+    print('='*80)
+
+    # 쿠키 로드
+    with open(cookie_file, 'r', encoding='utf-8') as f:
+        cookies = json.load(f)
+    cookie_dict = {cookie['name']: cookie['value'] for cookie in cookies}
+
+    # 쿠키별 폴더 생성
+    cookie_work_dir = os.path.join(work_dir, f"cookies_{cookie_idx}")
+    os.makedirs(cookie_work_dir, exist_ok=True)
+
+    jobs_collected = []
+
+    # 페이지별 스크래핑
+    total_pages_in_range = end_page - start_page + 1
+    for page_num in range(start_page, end_page + 1):
+        current_page_index = page_num - start_page + 1
+        progress = (current_page_index / total_pages_in_range) * 100
+
+        print(f"\n  [{cookie_idx}] [{current_page_index}/{total_pages_in_range}] 페이지 {page_num} 스크래핑 중... ({progress:.1f}%)")
+
+        # URL 구성
+        if page_num == 1:
+            url = TARGET_URL
+            referer = TARGET_URL
+        else:
+            url = f"{TARGET_URL}?page={page_num}"
+            referer = f"{TARGET_URL}?page={page_num - 1}"
+
+        # User-Agent 및 헤더 설정
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Referer': referer,
+            'Upgrade-Insecure-Requests': '1'
+        }
+
+        # 페이지 요청
+        try:
+            response = requests.get(url, cookies=cookie_dict, headers=headers)
+            response.raise_for_status()
+            response.encoding = 'euc-kr'
+
+            # HTML 파싱
+            job_listings = parse_job_listings(response.text)
+            print(f"  [{cookie_idx}] ✓ {len(job_listings)}개 항목 파싱 완료")
+
+            # # 각 항목의 상세페이지에서 핸드폰 번호 추출
+            # print(f"  [{cookie_idx}] 상세페이지에서 핸드폰 번호 수집 중...")
+            # for i, job in enumerate(job_listings, 1):
+            #     idx = job.get('idx')
+            #     if idx:
+            #         phone = fetch_phone_from_detail(idx, cookie_dict)
+            #         if phone:
+            #             job['phone'] = phone
+            #
+            #         # 상세 요청 간 짧은 딜레이 (0.5~1초)
+            #         if i < len(job_listings):
+            #             time.sleep(random.uniform(0.5, 1))
+            #
+            # print(f"  [{cookie_idx}] ✓ 핸드폰 번호 수집 완료")
+
+            # 페이지별 파일 저장 (쿠키별 폴더에)
+            page_file = os.path.join(cookie_work_dir, f"page_{page_num:03d}.json")
+            with open(page_file, 'w', encoding='utf-8') as f:
+                json.dump(job_listings, f, indent=2, ensure_ascii=False)
+            print(f"  [{cookie_idx}] ✓ 저장 완료")
+
+            # 전체 목록에 추가
+            jobs_collected.extend(job_listings)
+
+            # 마지막 페이지가 아니면 랜덤 딜레이
+            if page_num < end_page:
+                delay = random.uniform(1, 3)
+                print(f"  [{cookie_idx}] 딜레이: {delay:.1f}초...")
+                time.sleep(delay)
+
+        except requests.exceptions.RequestException as e:
+            print(f"\n  [{cookie_idx}] ✗ 오류 발생: {e}")
+            print(f"  [{cookie_idx}] 쿠키 세트 {cookie_idx}의 나머지 페이지를 건너뜁니다.")
+            break  # 이 쿠키의 나머지 페이지 스킵
+
+    print(f"\n[쿠키 세트 {cookie_idx}] 완료! 총 {len(jobs_collected)}개 항목 수집")
+    return jobs_collected
+
+
 def fetch_multiple_pages():
     """옵션 3: 저장된 쿠키를 사용하여 여러 페이지를 스크래핑합니다."""
     import random
     import time
     import glob
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    print(f"\n[옵션 3] 다중 페이지 스크래핑")
+    print(f"\n[옵션 3] 다중 페이지 스크래핑 (병렬 처리)")
 
     # 쿠키 파일 개수 확인
-    cookie_files = sorted(glob.glob("cookies_*.json"))
+    cookie_files = sorted(glob.glob(os.path.join(COOKIE_DIR, "cookies_*.json")))
     num_cookies = len(cookie_files)
 
     if num_cookies == 0:
@@ -383,95 +486,36 @@ def fetch_multiple_pages():
     # 시작 시간 기록
     start_time = time.time()
 
-    # 각 쿠키별로 처리
-    for cookie_idx, (start_page, end_page) in enumerate(ranges, 1):
-        cookie_file = cookie_files[cookie_idx - 1]
+    all_jobs = []
 
-        print(f"\n{'='*80}")
-        print(f"[쿠키 세트 {cookie_idx}/{num_cookies}] {os.path.basename(cookie_file)}")
-        print(f"페이지 범위: {start_page}~{end_page} ({end_page - start_page + 1}페이지)")
-        print('='*80)
+    # 병렬 처리로 각 쿠키 세트 동시 실행
+    print(f"\n병렬 처리 시작 ({num_cookies}개 쿠키 세트 동시 실행)...")
 
-        # 쿠키 로드
-        with open(cookie_file, 'r', encoding='utf-8') as f:
-            cookies = json.load(f)
-        cookie_dict = {cookie['name']: cookie['value'] for cookie in cookies}
+    with ThreadPoolExecutor(max_workers=num_cookies) as executor:
+        # 모든 쿠키 세트에 대한 작업 제출
+        futures = {}
+        for cookie_idx, (start_page, end_page) in enumerate(ranges, 1):
+            cookie_file = cookie_files[cookie_idx - 1]
+            future = executor.submit(
+                scrape_with_cookie,
+                cookie_idx,
+                cookie_file,
+                start_page,
+                end_page,
+                work_dir,
+                num_cookies
+            )
+            futures[future] = cookie_idx
 
-        # 쿠키별 폴더 생성
-        cookie_work_dir = os.path.join(work_dir, f"cookies_{cookie_idx}")
-        os.makedirs(cookie_work_dir, exist_ok=True)
-
-        # 페이지별 스크래핑
-        total_pages_in_range = end_page - start_page + 1
-        for page_num in range(start_page, end_page + 1):
-            current_page_index = page_num - start_page + 1
-            progress = (current_page_index / total_pages_in_range) * 100
-
-            print(f"\n  [{current_page_index}/{total_pages_in_range}] 페이지 {page_num} 스크래핑 중... ({progress:.1f}%)")
-
-            # URL 구성
-            if page_num == 1:
-                url = TARGET_URL
-                referer = TARGET_URL
-            else:
-                url = f"{TARGET_URL}?page={page_num}"
-                referer = f"{TARGET_URL}?page={page_num - 1}"
-
-            # User-Agent 및 헤더 설정
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Connection': 'keep-alive',
-                'Referer': referer,
-                'Upgrade-Insecure-Requests': '1'
-            }
-
-            # 페이지 요청
+        # 완료된 작업 결과 수집
+        for future in as_completed(futures):
+            cookie_idx = futures[future]
             try:
-                response = requests.get(url, cookies=cookie_dict, headers=headers)
-                response.raise_for_status()
-                response.encoding = 'euc-kr'
-
-                # HTML 파싱
-                job_listings = parse_job_listings(response.text)
-                print(f"  ✓ {len(job_listings)}개 항목 파싱 완료")
-
-                # 각 항목의 상세페이지에서 핸드폰 번호 추출
-                print(f"    상세페이지에서 핸드폰 번호 수집 중...")
-                for i, job in enumerate(job_listings, 1):
-                    idx = job.get('idx')
-                    if idx:
-                        phone = fetch_phone_from_detail(idx, cookie_dict)
-                        if phone:
-                            job['phone'] = phone
-
-                        # 상세 요청 간 짧은 딜레이 (0.5~1초)
-                        if i < len(job_listings):
-                            time.sleep(random.uniform(0.5, 1))
-
-                print(f"  ✓ 핸드폰 번호 수집 완료")
-
-                # 페이지별 파일 저장 (쿠키별 폴더에)
-                page_file = os.path.join(cookie_work_dir, f"page_{page_num:03d}.json")
-                with open(page_file, 'w', encoding='utf-8') as f:
-                    json.dump(job_listings, f, indent=2, ensure_ascii=False)
-                print(f"  ✓ 저장 완료")
-
-                # 전체 목록에 추가
-                all_jobs.extend(job_listings)
-
-                # 마지막 페이지가 아니면 랜덤 딜레이
-                if page_num < end_page:
-                    delay = random.uniform(1, 3)
-                    print(f"  딜레이: {delay:.1f}초...")
-                    time.sleep(delay)
-
-            except requests.exceptions.RequestException as e:
-                print(f"\n  ✗ 오류 발생: {e}")
-                print("  프로그램을 종료합니다.")
-                return
+                jobs = future.result()
+                all_jobs.extend(jobs)
+                print(f"\n✓ 쿠키 세트 {cookie_idx} 결과 수집 완료")
+            except Exception as e:
+                print(f"\n✗ 쿠키 세트 {cookie_idx} 오류: {e}")
 
     # 종료 시간 기록 및 소요 시간 계산
     end_time = time.time()
