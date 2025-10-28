@@ -11,6 +11,7 @@ from playwright.async_api import async_playwright
 from storage.factory import create_storage
 
 COOKIE_DIR = "cookies"
+COOKIE_FILE = os.path.join(COOKIE_DIR, "cookies.json")
 TARGET_URL = "https://www.hairinjob.com/cms/s01.php"
 RESULT_DIR = "scraping-result"
 
