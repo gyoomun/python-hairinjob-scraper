@@ -649,10 +649,12 @@ async def start_playwright_detail_scraping(all_jobs, storage):
             # 자동 로그인
             print("\n자동 로그인 진행 중...")
             try:
-                await page.fill('input[name="mb_id"]', '01028721278')
+                # 아이디 입력 (input name="userid" 중 첫번째)
+                await page.locator('input[name="userid"]').first.fill('01028721278')
                 print("✓ 아이디 입력 완료")
 
-                await page.fill('input[name="mb_password"]', '235194')
+                # 비밀번호 입력 (input name="pwd" 중 첫번째)
+                await page.locator('input[name="pwd"]').first.fill('235194')
                 print("✓ 비밀번호 입력 완료")
 
                 print("10초 대기 중...")
