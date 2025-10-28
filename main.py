@@ -8,6 +8,7 @@ import argparse
 from datetime import datetime
 from bs4 import BeautifulSoup, SoupStrainer
 from playwright.async_api import async_playwright
+from storage.factory import create_storage
 
 COOKIE_DIR = "cookies"
 TARGET_URL = "https://www.hairinjob.com/cms/s01.php"
@@ -307,7 +308,7 @@ def fetch_with_saved_cookies():
         print(f"\n✗ 오류 발생: {e}")
 
 
-def scrape_with_cookie(cookie_idx, cookie_file, start_page, end_page, work_dir, num_cookies):
+def scrape_with_cookie(cookie_idx, cookie_file, start_page, end_page, storage, num_cookies):
     """특정 쿠키로 할당된 페이지 범위를 스크래핑합니다."""
     import random
     import time
@@ -321,10 +322,6 @@ def scrape_with_cookie(cookie_idx, cookie_file, start_page, end_page, work_dir, 
     with open(cookie_file, 'r', encoding='utf-8') as f:
         cookies = json.load(f)
     cookie_dict = {cookie['name']: cookie['value'] for cookie in cookies}
-
-    # 쿠키별 폴더 생성
-    cookie_work_dir = os.path.join(work_dir, f"cookies_{cookie_idx}")
-    os.makedirs(cookie_work_dir, exist_ok=True)
 
     jobs_collected = []
 
@@ -380,10 +377,8 @@ def scrape_with_cookie(cookie_idx, cookie_file, start_page, end_page, work_dir, 
             #
             # print(f"  [{cookie_idx}] ✓ 핸드폰 번호 수집 완료")
 
-            # 페이지별 파일 저장 (쿠키별 폴더에)
-            page_file = os.path.join(cookie_work_dir, f"page_{page_num:03d}.json")
-            with open(page_file, 'w', encoding='utf-8') as f:
-                json.dump(job_listings, f, indent=2, ensure_ascii=False)
+            # Storage를 통한 저장
+            storage.save_jobs(job_listings, page_num, cookie_idx)
             print(f"  [{cookie_idx}] ✓ 저장 완료")
 
             # 전체 목록에 추가
@@ -404,7 +399,7 @@ def scrape_with_cookie(cookie_idx, cookie_file, start_page, end_page, work_dir, 
     return jobs_collected
 
 
-def fetch_multiple_pages():
+def fetch_multiple_pages(storage_type='json'):
     """옵션 3: 저장된 쿠키를 사용하여 여러 페이지를 스크래핑합니다."""
     import random
     import time
@@ -412,6 +407,7 @@ def fetch_multiple_pages():
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     print(f"\n[옵션 3] 다중 페이지 스크래핑 (병렬 처리)")
+    print(f"저장 방식: {storage_type}")
 
     # 쿠키 파일 개수 확인
     cookie_files = sorted(glob.glob(os.path.join(COOKIE_DIR, "cookies_*.json")))
@@ -477,47 +473,49 @@ def fetch_multiple_pages():
     for i, (s, e) in enumerate(ranges, 1):
         print(f"  쿠키 세트 {i}: 페이지 {s}~{e} ({e-s+1}페이지)")
 
-    # 작업 폴더 생성 (타임스탬프 기반)
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    work_dir = os.path.join(RESULT_DIR, timestamp)
-    os.makedirs(work_dir, exist_ok=True)
-    print(f"\n작업 폴더: {work_dir}")
+    # Storage 생성
+    storage = create_storage(storage_type, result_dir=RESULT_DIR)
+    session_id = storage.start_session(last_page, num_cookies)
 
     all_jobs = []
 
     # 시작 시간 기록
     start_time = time.time()
 
-    all_jobs = []
-
     # 병렬 처리로 각 쿠키 세트 동시 실행
     print(f"\n병렬 처리 시작 ({num_cookies}개 쿠키 세트 동시 실행)...")
 
-    with ThreadPoolExecutor(max_workers=num_cookies) as executor:
-        # 모든 쿠키 세트에 대한 작업 제출
-        futures = {}
-        for cookie_idx, (start_page, end_page) in enumerate(ranges, 1):
-            cookie_file = cookie_files[cookie_idx - 1]
-            future = executor.submit(
-                scrape_with_cookie,
-                cookie_idx,
-                cookie_file,
-                start_page,
-                end_page,
-                work_dir,
-                num_cookies
-            )
-            futures[future] = cookie_idx
+    try:
+        with ThreadPoolExecutor(max_workers=num_cookies) as executor:
+            # 모든 쿠키 세트에 대한 작업 제출
+            futures = {}
+            for cookie_idx, (start_page, end_page) in enumerate(ranges, 1):
+                cookie_file = cookie_files[cookie_idx - 1]
+                future = executor.submit(
+                    scrape_with_cookie,
+                    cookie_idx,
+                    cookie_file,
+                    start_page,
+                    end_page,
+                    storage,
+                    num_cookies
+                )
+                futures[future] = cookie_idx
 
-        # 완료된 작업 결과 수집
-        for future in as_completed(futures):
-            cookie_idx = futures[future]
-            try:
-                jobs = future.result()
-                all_jobs.extend(jobs)
-                print(f"\n✓ 쿠키 세트 {cookie_idx} 결과 수집 완료")
-            except Exception as e:
-                print(f"\n✗ 쿠키 세트 {cookie_idx} 오류: {e}")
+            # 완료된 작업 결과 수집
+            for future in as_completed(futures):
+                cookie_idx = futures[future]
+                try:
+                    jobs = future.result()
+                    all_jobs.extend(jobs)
+                    print(f"\n✓ 쿠키 세트 {cookie_idx} 결과 수집 완료")
+                except Exception as e:
+                    print(f"\n✗ 쿠키 세트 {cookie_idx} 오류: {e}")
+    finally:
+        # Storage 세션 완료 및 리소스 정리
+        total_jobs = len(all_jobs)
+        storage.complete_session(session_id, total_jobs, 0, 0)
+        storage.close()
 
     # 종료 시간 기록 및 소요 시간 계산
     end_time = time.time()
@@ -525,16 +523,11 @@ def fetch_multiple_pages():
     elapsed_minutes = int(elapsed_time // 60)
     elapsed_seconds = int(elapsed_time % 60)
 
-    # 모든 페이지 완료 후 통합 파일 생성
+    # 모든 페이지 완료 요약
     print(f"\n{'='*80}")
     print("모든 페이지 스크래핑 완료!")
     print(f"총 {len(all_jobs)}개 항목 수집")
     print(f"소요 시간: {elapsed_minutes}분 {elapsed_seconds}초")
-
-    all_jobs_file = os.path.join(work_dir, "all_jobs.json")
-    with open(all_jobs_file, 'w', encoding='utf-8') as f:
-        json.dump(all_jobs, f, indent=2, ensure_ascii=False)
-    print(f"✓ 통합 파일 저장: {all_jobs_file}")
     print('='*80)
 
 
@@ -690,7 +683,7 @@ def main():
     elif args.mode == 'scrape-all':
         print("\n[모드: 전체 스크래핑] 저장된 쿠키로 다중 페이지 스크래핑")
         print(f"[저장 방식: {args.storage}]")
-        fetch_multiple_pages()  # TODO: storage 파라미터 추가 예정
+        fetch_multiple_pages(storage_type=args.storage)
 
     elif args.mode == 'test-detail':
         print("\n[모드: 상세 페이지 테스트] 상세 페이지 스크래핑 (idx=101200)")
