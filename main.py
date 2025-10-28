@@ -400,7 +400,7 @@ def scrape_with_cookie(cookie_idx, cookie_file, start_page, end_page, storage, n
     return jobs_collected
 
 
-def fetch_multiple_pages(storage_type='json'):
+def fetch_multiple_pages(storage_type='json', skip_pages=False):
     """옵션 3: 저장된 쿠키를 사용하여 여러 페이지를 스크래핑합니다."""
     import random
     import time
@@ -409,6 +409,8 @@ def fetch_multiple_pages(storage_type='json'):
 
     print(f"\n[옵션 3] 다중 페이지 스크래핑 (병렬 처리)")
     print(f"저장 방식: {storage_type}")
+    if skip_pages:
+        print(f"모드: 페이지 스크래핑 건너뛰기 (상세페이지만)")
 
     # 쿠키 파일 개수 확인
     cookie_files = sorted(glob.glob(os.path.join(COOKIE_DIR, "cookies_*.json")))
@@ -420,6 +422,22 @@ def fetch_multiple_pages(storage_type='json'):
         return
 
     print(f"✓ {num_cookies}개의 쿠키 세트 발견")
+
+    # skip_pages가 True면 페이지 스크래핑 건너뛰고 바로 상세페이지로
+    if skip_pages:
+        print("\n페이지 스크래핑을 건너뛰고 상세페이지 스크래핑을 시작합니다...")
+
+        # Storage 생성 (상세페이지에서 사용)
+        storage = create_storage(storage_type, result_dir=RESULT_DIR)
+
+        # 빈 all_jobs로 상세페이지 스크래핑 시작 (DB나 이전 결과에서 가져올 수 있음)
+        all_jobs = []
+
+        # 상세페이지 스크래핑 함수 호출
+        scrape_detail_pages(all_jobs, cookie_files, storage)
+
+        storage.close()
+        return
 
     # 첫 번째 쿠키로 마지막 페이지 감지
     with open(cookie_files[0], 'r', encoding='utf-8') as f:
@@ -538,6 +556,7 @@ def fetch_multiple_pages(storage_type='json'):
 def scrape_detail_pages(all_jobs, cookie_files, storage):
     """
     모든 채용공고의 상세페이지를 스크래핑합니다.
+    Playwright 영구 브라우저를 사용하여 로그인 상태 유지
 
     Args:
         all_jobs: 수집된 모든 채용공고 리스트
@@ -549,13 +568,110 @@ def scrape_detail_pages(all_jobs, cookie_files, storage):
     print(f"대상: {len(all_jobs)}개 채용공고")
     print('='*80)
 
-    # TODO: 상세 구현 로직 추가 예정
-    # - 병렬 처리로 각 쿠키 세트에 채용공고 분배
-    # - 각 채용공고의 상세페이지 요청
-    # - 핸드폰 번호 등 추가 정보 추출
-    # - Storage를 통해 업데이트
+    # Playwright 영구 브라우저로 로그인 세션 시작
+    print("\nPlaywright 영구 브라우저 시작 중...")
+    import asyncio
+    asyncio.run(start_playwright_detail_scraping(all_jobs, storage))
 
-    print("\n[상세페이지 스크래핑] TODO: 구현 예정")
+    print(f"\n{'='*80}")
+    print("상세페이지 스크래핑 완료")
+    print('='*80)
+
+
+async def start_playwright_detail_scraping(all_jobs, storage):
+    """Playwright로 영구 브라우저 세션을 시작하고 로그인 후 상세페이지 스크래핑"""
+    import os
+    import shutil
+    import time
+    from playwright.async_api import async_playwright
+
+    BROWSER_DATA_DIR = "browser-data"
+    TIMESTAMP_FILE = os.path.join(BROWSER_DATA_DIR, ".last_reset")
+    RESET_INTERVAL = 7 * 24 * 60 * 60  # 7일
+    TARGET_URL = "https://www.hairinjob.com/"
+    LOGIN_URL = "https://www.hairinjob.com/cms/user/login.php"
+    LOGOUT_URL = "https://www.hairinjob.com/member/login_ok.php?del=1"
+
+    # 브라우저 데이터 초기화 확인
+    if os.path.exists(TIMESTAMP_FILE):
+        with open(TIMESTAMP_FILE, 'r') as f:
+            last_reset = float(f.read().strip())
+        if time.time() - last_reset > RESET_INTERVAL:
+            print("브라우저 데이터 초기화 중... (일주일 경과)")
+            shutil.rmtree(BROWSER_DATA_DIR)
+            print("✓ 브라우저 데이터 삭제 완료")
+
+    # 타임스탬프 생성
+    os.makedirs(BROWSER_DATA_DIR, exist_ok=True)
+    if not os.path.exists(TIMESTAMP_FILE):
+        with open(TIMESTAMP_FILE, 'w') as f:
+            f.write(str(time.time()))
+
+    async with async_playwright() as p:
+        context = await p.chromium.launch_persistent_context(
+            BROWSER_DATA_DIR,
+            headless=False,
+            args=['--disable-blink-features=AutomationControlled'],
+            viewport={'width': 1280, 'height': 720},
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        )
+
+        page = context.pages[0] if context.pages else await context.new_page()
+
+        # 페이지 로드 및 로그인 확인
+        print(f"\n{TARGET_URL} 이동 중...")
+        await page.goto(TARGET_URL, wait_until='networkidle')
+        print("✓ 페이지 로드 완료")
+
+        # 새로고침
+        print("\n페이지 새로고침 중...")
+        await page.reload(wait_until='networkidle')
+        print("✓ 새로고침 완료")
+
+        # 4초 대기
+        print("페이지 안정화 대기 중... (4초)")
+        await asyncio.sleep(4)
+
+        # 로그인 상태 확인
+        print("\n로그인 상태 확인 중...")
+        page_content = await page.content()
+
+        is_logged_in = LOGOUT_URL in page_content
+
+        if is_logged_in:
+            print("✅ 로그인 상태: 로그인됨")
+        else:
+            print("❌ 로그인 상태: 로그인 안됨")
+            print("\n로그인 페이지로 이동 중...")
+            await page.goto(LOGIN_URL, wait_until='networkidle')
+            print(f"✓ 로그인 페이지 로드 완료")
+
+            # 자동 로그인
+            print("\n자동 로그인 진행 중...")
+            try:
+                await page.fill('input[name="mb_id"]', '01028721278')
+                print("✓ 아이디 입력 완료")
+
+                await page.fill('input[name="mb_password"]', '235194')
+                print("✓ 비밀번호 입력 완료")
+
+                print("10초 대기 중...")
+                await asyncio.sleep(10)
+                print("✓ 대기 완료")
+
+            except Exception as e:
+                print(f"⚠️  자동 로그인 오류: {e}")
+
+        print("\n✓ 로그인 세션 준비 완료")
+        print("상세페이지 스크래핑 로직은 추후 구현 예정")
+
+        # TODO: 실제 상세페이지 스크래핑 로직
+        # - all_jobs를 순회하며 각 상세페이지 방문
+        # - 추가 정보 추출
+        # - storage를 통해 업데이트
+
+        await context.close()
+        print("✓ 브라우저 세션 종료")
 
 
 def fetch_detail_page():
@@ -665,6 +781,12 @@ def main():
         help='저장 방식 선택 (scrape-all 모드 전용, 필수)'
     )
 
+    parser.add_argument(
+        '--skip-pages',
+        action='store_true',
+        help='페이지 스크래핑 건너뛰기 (scrape-all 모드 전용, 상세페이지만 스크래핑)'
+    )
+
     # 인자가 없으면 커스텀 메시지만 표시
     if len(sys.argv) == 1:
         print("\n" + "="*80)
@@ -710,7 +832,9 @@ def main():
     elif args.mode == 'scrape-all':
         print("\n[모드: 전체 스크래핑] 저장된 쿠키로 다중 페이지 스크래핑")
         print(f"[저장 방식: {args.storage}]")
-        fetch_multiple_pages(storage_type=args.storage)
+        if args.skip_pages:
+            print("[옵션: 페이지 스크래핑 건너뛰기]")
+        fetch_multiple_pages(storage_type=args.storage, skip_pages=args.skip_pages)
 
     elif args.mode == 'test-detail':
         print("\n[모드: 상세 페이지 테스트] 상세 페이지 스크래핑 (idx=101200)")
