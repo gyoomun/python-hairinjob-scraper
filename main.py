@@ -683,10 +683,7 @@ async def start_playwright_detail_scraping(all_jobs, storage):
         # requests 라이브러리에서 사용할 수 있는 형식으로 변환
         cookie_dict = {cookie['name']: cookie['value'] for cookie in cookies}
         print(f"✓ 쿠키 추출 완료 (총 {len(cookie_dict)}개)")
-
-        # 쿠키 추출 후 즉시 브라우저 종료
-        await context.close()
-        print("✓ 브라우저 세션 종료 (쿠키 추출 완료)")
+        print("✓ 브라우저 세션 유지 중...")
 
         # DB에서 상세페이지 URL 조회
         print("\nDB에서 상세페이지 URL 조회 중...")
